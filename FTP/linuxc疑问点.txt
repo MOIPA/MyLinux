@@ -1,0 +1,69 @@
+1：Q:server端while里面放了recv用来实时接收，当client端连接时会阻塞，但是当client突然断开连接时，就不阻塞了无限while
+
+   A:可以在client的exit命令里send给服务器一个exitserver命令，这样client的exit也相当于发送给了服务器exitserver
+
+2：Q:server端  创建用户函数creteUser返回一个我定义的Struct User *users,
+	我想知道users里有几个人，用sizeof(users)/sizeof(struct User)是 0打印出来是8 和 60？？？什么情况
+
+   A:users是指针，脑残了，直接在creteUser的入参添加一个int * user_count,终结
+
+3: Q：当用户突然断开后ctrl+C 服务器的recv不阻塞导致while循环无限
+
+   A:直接send not right user name or password 这句话给客户端，(1)让客户端判断返回信息是不是这句话，时就得把自己停掉
+	(2)或者直接close和server的连接（close(server_sock)）然后重新连接（connect）
+    因为accept也在while循环里，得让用户重新打开client端刷新自己的client_sock
+4：Q：得到的回应比如：cd /home 怎么把它拆成cd和/home？
+   A：遍历
+
+5：Q：scanf 怎么接收空格？
+   A：“%[^\n]”读入一个字符集合遇到\n停止
+
+6：BUG：为什么在doSplit函数里定义的str[2][1024]能留着上一次的值？？它是局部变量啊
+
+7：Q:使用“%[^\n]”读入一个字符集合时发现下次读直接跳过
+   A：因为下次scanf时读取\n自动返回所以看起来没读取，解决方案在前面加个空格“ %[^\n]”
+
+8：Q:mkdir 失败了
+   A：
+9：Q:只有sudo 启动server和client才可以mkdir 但是mkdir的权限前面都是？？？umask的问题 换个目录解决
+
+10：怎么才能响应在server端操作的命令
+	开一个新线程去处理来自server端的命令
+
+11：数字转为字符
+	itoa()函数有3个参数：第一个参数是要转换的数字，
+	第二个参数是要写入转换结果的目标字符串，第三个参数是转移数字时所用 的基数。
+	在上例中，转换基数为10。10：十进制；2：二进制...（用不了，改用sprintf(str,"%d",num)）
+12：服务端接收quit结束，我是开了个子线程去接收服务端的命令，子线程修改信号量，主线程检测这个信号量
+    但是，主线程会阻塞在accept那边，等待客户端接收
+    问题是我服务器端有quit 改变了信号量，但是得等新的client连接才能退出
+
+
+思路：
+
+服务器端：初始化可以登录的user，绑定ip和port 监听，
+开启一个线程用来处理服务器端的命令，查看多少用户，当前活动用户，
+
+然后使用一个循环，向客户端请求登陆信息 ，接收后判断是否有此用户，
+有就创建新的线程，但是为了在线程函数里传递客户端的socket和客户权限标记（1：root 0:common），创建一个结构体
+包含这两个参数。
+然后handClientRequest负责处理用户的请求，并且设置自身分离模式pthread_detach(pthread_self)为了自己退出时释放资源
+处理时判断用户的权限 是否有管理员权限 不能执行的操作返回permission denied
+用户默认登陆到/home/server目录下
+有些命令带参数 如：cd /home  用Split函数分割cd 和/home cd用作command  /home用作content
+
+ascall 和 binary
+二进制传输文件：我可以fopen 的b和t，当用户输入binary或者ascall是，客户端和服务端都设置当前传输模式为那个模式
+put:上传文件到服务器，那服务器接收commamd 和 content（里面应该是filename）然后send 里面写needfilecontent
+，服务器再recv做好接收的文件内容的准备，客户端在发送文件内容，客户端接收到needfilecontent send文件内容
+客户端打开文件失败时发送error  服务端检测内容是否为error
+
+
+
+
+1：启动方式问题：直接判断arg是否为2 是就说明用户输入了ip否则用127.0.0.1
+
+2：处理用户问题：写一个do_createUsr()返回struct User * 用于以后方便的添加其他用户，用judgeUser()判断用户是否存在
+并且返回一个值1表示是root用户 0表示普通用户 -1表示不存在这个用户访客状态访问
+
+3：pthred_create没啥好说的
